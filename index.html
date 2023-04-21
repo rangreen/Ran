@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script async src="https://docs.opencv.org/master/opencv.js" onload="initialize();" type="text/javascript"></script>
+  <style>
+    canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <button onclick="startVideo();">Start Video</button>
+  </div>
+  <video id="video" width="640" height="480" autoplay></video>
+  <canvas id="canvas"></canvas>
+  <script type="text/javascript">
+    let video = document.getElementById('video');
+    let canvas = document.getElementById('canvas');
+    let ctx = canvas.getContext('2d');
+
+    async function initialize() {
+      if (typeof cv === 'undefined') {
+        setTimeout(initialize, 50);
+        return;
+      }
+      startVideo();
+    }
+
+    function startVideo() {
+      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(function (stream) {
+          video.srcObject = stream;
+          video.play();
+          processVideo();
+        })
+        .catch(function (err) {
+          console.error("An error occurred: " + err);
+        });
+    }
+
+    function processVideo() {
+      let src = new cv.Mat(video.height, video.width, cv.CV_8UC4);
+      let dst = new cv.Mat(video.height, video.width, cv.CV_8UC4);
+
+      const FPS = 30;
+      function processFrame() {
+        if (video.ended) {
+          return;
+        }
+        let begin = Date.now();
+
+        // Capture the frame from the video element
+        ctx.drawImage(video, 0, 0, video.width, video.height);
+        let imageData = ctx.getImageData(0, 0, video.width, video.height);
+        src.data.set(imageData.data);
+
+        // Change the color of the iris
+        changeIrisColor(src, dst);
+
+        // Draw the processed frame back to the video element
+        ctx.putImageData(new ImageData(new Uint8ClampedArray(dst.data), dst.cols, dst.rows), 0, 0);
+
+        // Calculate the time delay to achieve the desired frame rate
+        let delay = 1000 / FPS - (Date.now() - begin);
+        setTimeout(processFrame, delay);
+      }
+
+      processFrame();
+    }
+
+    function changeIrisColor(src, dst) {
+      // Implement the iris color change functionality here.
+      // You can use OpenCV's face and eye detection features, and then apply color transformations on the detected iris.
+
+      // For now, we simply copy the src frame to the dst frame
+      src.copyTo(dst);
+    }
+  </script>
+</body>
+</html>
