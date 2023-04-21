@@ -1,7 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <script async src="https://docs.opencv.org/master/opencv.js" onload="initialize();" type="text/javascript"></script>
+  <script   <script async src="https://docs.opencv.org/master/opencv.js" onload="initialize();" type="text/javascript"></script>
+  <script>
+    Module = {
+      locateFile: function (path) {
+        if (path.endsWith('.xml')) {
+          return './' + path;
+        }
+        return path;
+      }
+    };
+  </script>
   <style>
     canvas {
       display: none;
@@ -28,6 +38,7 @@
     }
 
     function startVideo() {
+      console.log("startVideo() called");
       navigator.mediaDevices.getUserMedia({ video: true, audio: false })
         .then(function (stream) {
           video.srcObject = stream;
@@ -40,11 +51,13 @@
     }
 
     function processVideo() {
+      console.log("processVideo() called");
       let src = new cv.Mat(video.height, video.width, cv.CV_8UC4);
       let dst = new cv.Mat(video.height, video.width, cv.CV_8UC4);
 
       const FPS = 30;
       function processFrame() {
+        console.log("processFrame() called");
         if (video.ended) {
           return;
         }
@@ -70,12 +83,79 @@
     }
 
     function changeIrisColor(src, dst) {
-      // Implement the iris color change functionality here.
-      // You can use OpenCV's face and eye detection features, and then apply color transformations on the detected iris.
+  // Copy the source frame to the destination frame
+  src.copyTo(dst);
 
-      // For now, we simply copy the src frame to the dst frame
-      src.copyTo(dst);
+  // Initialize the face and eye classifiers
+  let faceClassifier = new cv.CascadeClassifier();
+  let eyeClassifier = new cv.CascadeClassifier();
+  if (!faceClassifier.load('haarcascade_frontalface_default.xml')) {
+    console.error('Failed to load face classifier XML');
+    return;
+  }
+  if (!eyeClassifier.load('haarcascade_eye.xml')) {
+    console.error('Failed to load eye classifier XML');
+    return;
+  }
+
+  let faces = new cv.RectVector();
+  let eyes = new cv.RectVector();
+  let gray = new cv.Mat();
+  let irisColor = new cv.Scalar(0, 255, 0);
+
+  // Convert the source frame to grayscale
+  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+  // Detect faces in the frame
+  faceClassifier.detectMultiScale(gray, faces);
+
+  for (let i = 0; i < faces.size(); ++i) {
+    let face = faces.get(i);
+
+    // Detect eyes within the face region
+    let faceRoi = gray.roi(face);
+    eyeClassifier.detectMultiScale(faceRoi, eyes);
+
+    for (let j = 0; j < eyes.size(); ++j) {
+      let eye = eyes.get(j);
+
+      // Adjust the eye rectangle relative to the face rectangle
+      eye.x += face.x;
+      eye.y += face.y;
+
+      // Process the eye region
+      let eyeRoi = gray.roi(eye);
+      let eyeDst = dst.roi(eye);
+
+      // Detect iris using HoughCircles
+      let circles = new cv.Mat();
+      cv.HoughCircles(eyeRoi, circles, cv.HOUGH_GRADIENT, 1, 80, 30, 10, 3, 50);
+
+      for (let k = 0; k < circles.cols; ++k) {
+        let x = circles.data32F[k * 3];
+        let y = circles.data32F[k * 3 + 1];
+        let r = circles.data32F[k * 3 + 2];
+
+        // Draw a filled circle over the iris with the desired color
+        cv.circle(eyeDst, new cv.Point(x, y), r, irisColor, -1);
+      }
+
+      // Clean up resources
+      eyeRoi.delete();
+      circles.delete();
     }
+
+    faceRoi.delete();
+  }
+
+  // Clean up resources
+  gray.delete();
+  faces.delete();
+  eyes.delete();
+  faceClassifier.delete();
+  eyeClassifier.delete();
+}
   </script>
 </body>
 </html>
+
